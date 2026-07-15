@@ -1,0 +1,224 @@
+select*
+from layoffs;
+
+select  count(*)
+from layoffs;
+
+# We created a new dataset to keep  the raw data for further analysis
+create table layoffs_staging  
+like layoffs;
+
+select*
+from layoffs_staging;
+
+
+# this insert all the table records into staging records
+INSERT into layoffs_staging
+select* from layoffs;
+
+# identifying duplicate
+select*,
+ROW_NUMBER() over(
+partition by company, location, industry, total_laid_off, percentage_laid_off, 'date', stage, country, funds_raised_millions) as row_num
+from layoffs_staging;
+
+# above we assign a unique identifier, which is 1 for each record. 
+# so we use CTE to check if any record is greater than 1 or is a duplicate
+
+with duplicate_cte AS
+(
+select*,
+ROW_NUMBER() over(
+partition by company, location, industry, total_laid_off, percentage_laid_off, 'date', stage, country, funds_raised_millions) as row_num
+from layoffs_staging
+)
+select*
+from duplicate_cte
+WHERE row_num > 1;
+
+#confirmation if they are actually duplicates by treating  each duplicate independently, allowing us to verify each record
+select*
+from layoffs_staging
+where company = 'zymergen'
+;
+
+# We create a table, layoffs_staging2, and insert the column. This table allows us to delete duplicates
+CREATE TABLE `layoffs_staging2` (
+  `company` text,
+  `location` text,
+  `industry` text,
+  `total_laid_off` int DEFAULT NULL,
+  `percentage_laid_off` text,
+  `date` text,
+  `stage` text,
+  `country` text,
+  `funds_raised_millions` int DEFAULT NULL,
+  `row_num` INT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+select*
+from layoffs_staging2;
+
+#we inserted the unique identifier records into layoffs....2
+insert into layoffs_staging2
+select*,
+ROW_NUMBER() over(
+partition by company, location, industry, total_laid_off, percentage_laid_off, 'date', stage, country, funds_raised_millions) as row_num
+from layoffs_staging;
+
+
+select*
+from layoffs_staging2
+where row_num > 1; # this are the duplicate
+
+# we can delete  using
+
+delete
+from layoffs_staging2
+where row_num > 1;# must be rows greater than 1
+
+#confirm
+select*
+from layoffs_staging2;
+
+select count(*)
+from layoffs_staging;
+
+-- standadization --
+select distinct company
+from layoffs_staging2;
+# we want to remove all the white space before the starting name
+
+select company, TRIM(company)
+from layoffs_staging2;
+
+update layoffs_staging2
+SET company = TRIM(company);
+
+select distinct industry
+from layoffs_staging2;
+
+# we gonaa resolve crypto and crypto currency under the industry for exploratory ananlysis
+
+select*
+from layoffs_staging2
+where industry like 'crypto%';
+
+#so we update to have a unique name
+ update layoffs_staging2
+ SET industry = 'crypto'
+ where  industry like 'crypto%';
+ 
+select*
+from layoffs_staging2;
+
+
+select distinct country
+from layoffs_staging2;
+
+#we do remove the .  in united state
+
+select distinct country, trim(trailing '.' from country)
+from layoffs_staging
+order by 1;
+
+update layoffs_staging2
+set country = trim(trailing '.' from country)
+where country like 'united states%';
+
+
+# for exploratory we need to change the date pattern  to month, date ,yr
+
+select`date`,
+str_to_date(`date`, '%m/%d/%Y')
+from layoffs_staging2;
+
+update layoffs_staging2
+set `date` = str_to_date(`date`, '%m/%d/%Y');
+
+-- comparison ---
+select*
+from layoffs;
+
+select`date`
+from layoffs_staging2;
+
+#change date from text to date
+alter table layoffs_staging2
+modify column `date` date;
+
+# null and blank  values
+select*
+from layoffs_staging2
+where total_laid_off is null
+and percentage_laid_off is null;
+
+# we check all columns for null and blank space
+select distinct industry
+from layoffs_staging2; # HAS NULL AND BLANK
+
+select distinct country
+from layoffs_staging2; # NON 
+
+select distinct location # NON
+from layoffs_staging2;
+
+#INDUSTRY
+select*
+from layoffs_staging2
+WHERE industry is null
+or industry  = '';
+
+# we can cheeck each null or '' records to idnt unique diff
+select*
+from layoffs_staging2
+where company = 'Airbnb';
+
+# from above we can vividly see that Airbnb has an industry in some record. we can simply populate other blank space to travel industry
+-- using join(reason becos we gonna use those with travel to update the other..self join 
+
+select*
+from layoffs_staging2 as t1
+join layoffs_staging2 as t2
+on t1.company = t2.company #possible to have Airbnb in a different location will blank space
+where(t1.industry is null or t1.industry = '')
+and t2.industry is not null;
+
+select t1.industry, t2.industry
+from layoffs_staging2 as t1
+join layoffs_staging2 as t2
+on t1.company = t2.company #possible to have Airbnb in a different location, will blank space
+where(t1.industry is null or t1.industry = '')
+and t2.industry is not null;
+
+#set t1 to be nul
+update layoffs_staging2
+set industry = null
+where industry = '';
+
+#basically t2 will be used to populate t1
+update layoffs_staging2 as t1
+join layoffs_staging2 as t2
+	on t1.company = t2.company
+set t1.industry= t2.industry
+where t1.industry is null
+and t2.industry is not null;
+
+#check
+
+select*
+from layoffs_staging2
+where company = 'Airbnb';
+
+#remove null in the col
+delete
+from layoffs_staging2
+where total_laid_off is null
+and percentage_laid_off is null;
+
+select*
+from layoffs_staging2;
+
+# drop the uniqui row num we created
+alter table layoffs_staging2
+drop column row_num;
