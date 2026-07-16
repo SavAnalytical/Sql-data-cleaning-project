@@ -250,9 +250,8 @@ After duplicate removal, the helper column (`row_num`) was no longer required an
 
 
 # Author
-
 **Mbah Francis**
-*
+*If you found this project useful or interesting, a ⭐ on the repo is appreciated!*
 
 
 
