@@ -138,7 +138,7 @@ Each record was partitioned using multiple columns to determine whether duplicat
 
 Records with a row number greater than one were classified as duplicates.
 
-```
+```{sql connection=}
 select*,
 ROW_NUMBER() over(
 partition by company, location, industry, total_laid_off, percentage_laid_off, 'date', stage, country, funds_raised_millions) as row_num
@@ -212,6 +212,18 @@ United States
 The original dataset stored dates as text.
 
 Using `STR_TO_DATE()`, the values were converted into the proper SQL DATE format before modifying the column data type.
+
+```
+select`date`,
+str_to_date(`date`, '%m/%d/%Y')
+from layoffs_staging2;
+```
+
+```
+update layoffs_staging2
+set `date` = str_to_date(`date`, '%m/%d/%Y');
+```
+
 
 This enables chronological filtering, sorting, and time-based analysis.
 
