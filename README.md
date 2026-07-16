@@ -138,6 +138,13 @@ Each record was partitioned using multiple columns to determine whether duplicat
 
 Records with a row number greater than one were classified as duplicates.
 
+```
+select*,
+ROW_NUMBER() over(
+partition by company, location, industry, total_laid_off, percentage_laid_off, 'date', stage, country, funds_raised_millions) as row_num
+from layoffs_staging;
+```
+
 ---
 
 ## 4. Remove Duplicate Records
